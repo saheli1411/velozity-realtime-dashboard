@@ -1,0 +1,125 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  ADMIN
+  PROJECT_MANAGER
+  DEVELOPER
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  IN_REVIEW
+  DONE
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model User {
+  id              String         @id @default(uuid())
+  email           String         @unique
+  password        String
+  name            String
+  role            Role
+  refreshToken    String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  createdProjects Project[]      @relation("PMProjects")
+  assignedTasks   Task[]         @relation("AssignedTasks")
+  activities      ActivityLog[]  @relation("UserActivities")
+  notifications   Notification[] @relation("UserNotifications")
+
+  @@index([role])
+  @@index([email])
+}
+
+model Client {
+  id        String    @id @default(uuid())
+  name      String
+  email     String    @unique
+  projects  Project[]
+  createdAt DateTime  @default(now())
+}
+
+model Project {
+  id          String        @id @default(uuid())
+  name        String
+  description String?
+  clientId    String
+  client      Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  creatorId   String
+  creator     User          @relation("PMProjects", fields: [creatorId], references: [id])
+  tasks       Task[]
+  activities  ActivityLog[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([creatorId])
+  @@index([clientId])
+}
+
+model Task {
+  id          String        @id @default(uuid())
+  title       String
+  description String?
+  status      TaskStatus    @default(TODO)
+  priority    Priority      @default(MEDIUM)
+  dueDate     DateTime
+  isOverdue   Boolean       @default(false)
+  projectId   String
+  project     Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  developerId String
+  developer   User          @relation("AssignedTasks", fields: [developerId], references: [id])
+  activities  ActivityLog[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([projectId])
+  @@index([developerId])
+  @@index([status])
+  @@index([priority])
+  @@index([dueDate])
+  @@index([isOverdue])
+}
+
+model ActivityLog {
+  id         String      @id @default(uuid())
+  message    String
+  taskId     String
+  task       Task        @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  projectId  String
+  project    Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User        @relation("UserActivities", fields: [userId], references: [id])
+  fromStatus TaskStatus?
+  toStatus   TaskStatus?
+  createdAt  DateTime    @default(now())
+
+  @@index([projectId, createdAt(sort: Desc)])
+  @@index([userId, createdAt(sort: Desc)])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  message   String
+  isRead    Boolean  @default(false)
+  userId    String
+  user      User     @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([userId, isRead])
+  @@index([userId, createdAt(sort: Desc)])
+}
